@@ -15,18 +15,10 @@ import OauthSignIn from "@/components/ui/AuthForms/OauthSignIn";
 import ForgotPassword from "@/components/ui/AuthForms/ForgotPassword";
 import UpdatePassword from "@/components/ui/AuthForms/UpdatePassword";
 import SignUp from "@/components/ui/AuthForms/Signup";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { MessagesSquare, Image } from "lucide-react";
+import { Bird } from "lucide-react";
+
+import { metadata as siteMetadata } from "@/lib/constants";
 
 export default async function SignIn({
   params,
@@ -74,8 +66,10 @@ export default async function SignIn({
             className="flex flex-row items-center gap-4"
             prefetch={false}
           >
-            <Image className="h-8 w-8" />
-            <div className="text-3xl font-medium">WYSIWYG-AI</div>
+            <Bird className="h-8 w-8" />
+            <div className="text-3xl font-medium">
+              {siteMetadata.title as string}
+            </div>
           </Link>
         </div>
         <CardSupabase

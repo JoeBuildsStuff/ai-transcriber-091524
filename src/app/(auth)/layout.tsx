@@ -7,11 +7,14 @@ export default function ApplicationLayout({ children }: PropsWithChildren) {
   return (
     <div>
       {/* Add your application-specific layout components */}
-      {/* <nav>Auth Nav </nav> */}
-      {children}
-      <footer>
-        <SiteFooter />
-      </footer>
+      <main className="min-h-[100dvh] grid grid-rows-[auto_1fr_auto]">
+        <nav>{/* <SiteHeader /> */}</nav>
+        {children}
+
+        <footer>
+          <SiteFooter />
+        </footer>
+      </main>
     </div>
   );
 }

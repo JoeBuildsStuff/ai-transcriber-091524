@@ -1,29 +1,29 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "AI News on the Cheep",
+  title: "AI Transcriber",
   description:
-    "Stay informed with our AI-curated newsletter, delivering the latest insights and applications of artificial intelligence across various industries.",
+    "Transform audio into text effortlessly with our AI-powered transcription service.",
   keywords: [
-    "AI newsletter",
-    "artificial intelligence news",
-    "applied AI",
-    "tech innovations",
-    "AI applications",
+    "AI transcription",
+    "audio to text",
+    "speech recognition",
+    "transcription service",
+    "artificial intelligence",
   ],
-  authors: [{ name: "AI News on the Cheep Team" }],
+  authors: [{ name: "AI Transcriber Team" }],
   openGraph: {
-    title: "AI News on the Cheep: Your Source for AI Innovations",
+    title: "AI Transcriber: Your Audio to Text Solution",
     description:
-      "Discover how AI is transforming industries with our curated newsletter. Get the latest insights on applied artificial intelligence.",
-    url: "https://newsappliedai.com",
-    siteName: "AI News on the Cheep",
+      "Experience seamless audio transcription with AI. Get accurate text from your audio files in no time.",
+    url: "https://aitranscriber.com",
+    siteName: "AI Transcriber",
     images: [
       {
-        url: "https://newsappliedai.com/opengraph-image.png",
+        url: "https://aitranscriber.com/opengraph-image.png",
         width: 1200,
         height: 630,
-        alt: "AI News on the Cheep Newsletter Preview",
+        alt: "AI Transcriber Service Preview",
       },
     ],
     locale: "en_US",
@@ -31,11 +31,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI News on the Cheep: AI Innovations at Your Fingertips",
+    title: "AI Transcriber: Transcribe Audio with AI",
     description:
-      "Stay ahead of the curve with our AI-powered newsletter, bringing you the latest in applied artificial intelligence.",
-    creator: "@newsappliedai",
-    images: ["https://newsappliedai.com/twitter-image.jpg"],
+      "Convert your audio files to text with our advanced AI transcription service.",
+    creator: "@aitranscriber",
+    images: ["https://aitranscriber.com/twitter-image.jpg"],
   },
   robots: {
     index: true,
@@ -53,12 +53,7 @@ export const metadata: Metadata = {
     shortcut: "/favicon-16x16.png",
     // apple: '/apple-touch-icon.png',
   },
-  //   verification: {
-  //     google: 'your-google-site-verification-code',
-  //     yandex: 'your-yandex-verification-code',
-  //     bing: 'your-bing-verification-code',
-  //   },
   other: {
-    "application-name": "AI News on the Cheep",
+    "application-name": "AI Transcriber",
   },
 };
