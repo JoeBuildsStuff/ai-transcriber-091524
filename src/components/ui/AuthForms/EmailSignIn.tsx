@@ -4,7 +4,7 @@ import Link from "next/link";
 import { signInWithEmail } from "@/utils/auth-helpers/server";
 import { handleRequest } from "@/utils/auth-helpers/client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+// import { useState } from "react";
 import { Label } from "../label";
 import { Input } from "../input";
 import { Button } from "../button";
@@ -22,16 +22,16 @@ export default function EmailSignIn({
   disableButton,
 }: EmailSignInProps) {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    setIsSubmitting(true);
+    // setIsSubmitting(true);
     await handleRequest(
       e,
       signInWithEmail,
       redirectMethod === "client" ? router : null
     );
-    setIsSubmitting(false);
+    // setIsSubmitting(false);
   };
 
   return (

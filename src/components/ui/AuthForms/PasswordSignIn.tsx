@@ -4,11 +4,11 @@ import Link from "next/link";
 import { signInWithPassword } from "@/utils/auth-helpers/server";
 import { handleRequest } from "@/utils/auth-helpers/client";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+// import React, { useState } from "react";
+import React from "react";
 import { Input } from "../input";
 import { Label } from "../label";
 import { Button } from "../button";
-
 // Define prop type with allowEmail boolean
 interface PasswordSignInProps {
   allowEmail: boolean;
@@ -20,16 +20,16 @@ export default function PasswordSignIn({
   redirectMethod,
 }: PasswordSignInProps) {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    setIsSubmitting(true);
+    // setIsSubmitting(true);
     await handleRequest(
       e,
       signInWithPassword,
       redirectMethod === "client" ? router : null
     );
-    setIsSubmitting(false);
+    // setIsSubmitting(false);
   };
 
   return (

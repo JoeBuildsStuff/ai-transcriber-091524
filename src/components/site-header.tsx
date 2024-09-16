@@ -2,10 +2,10 @@ import Link from "next/link";
 import { Bird } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AuthButton from "@/components/auth-button";
-import { metadata } from "@/lib/constants";
+// import { metadata } from "@/lib/constants";
 
 export default function SiteHeader() {
-  const title = metadata.other?.["application-name"] || "Enter App Name";
+  // const title = metadata.other?.["application-name"] || "Enter App Name";
   return (
     <header className="px-2 sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-10 items-center">

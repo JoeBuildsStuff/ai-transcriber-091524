@@ -2,7 +2,7 @@
 
 import { signInWithOAuth } from "@/utils/auth-helpers/client";
 import { type Provider } from "@supabase/supabase-js";
-import { useState } from "react";
+// import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import GoogleIcon from "@/components/icons/Google";
 import GitHub from "@/components/icons/GitHub";
@@ -31,12 +31,12 @@ export default function OauthSignIn() {
     //   icon: <MicrosoftIcon />
     // }
   ];
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    setIsSubmitting(true); // Disable the button while the request is being handled
+    // setIsSubmitting(true); // Disable the button while the request is being handled
     await signInWithOAuth(e);
-    setIsSubmitting(false);
+    // setIsSubmitting(false);
   };
 
   return (
