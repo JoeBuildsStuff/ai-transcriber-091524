@@ -38,8 +38,6 @@ export async function POST(req: NextRequest) {
             throw error;
           }
 
-          console.log("Full Deepgram result:", result);
-
           // Send the complete result
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(result)}\n\n`));
 

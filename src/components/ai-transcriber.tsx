@@ -29,6 +29,8 @@ export default function AITranscriber() {
   const [formattedTranscript, setFormattedTranscript] = useState<
     FormattedTranscriptGroup[]
   >([]);
+  const [summary, setSummary] = useState<string>("");
+  const [summaryStatus, setSummaryStatus] = useState<string>("");
 
   useEffect(() => {
     if (transcriptionResult) {
@@ -50,6 +52,55 @@ export default function AITranscriber() {
     }
   }, [transcriptionResult]);
 
+  const handleSummarize = async () => {
+    if (formattedTranscript.length === 0) return;
+
+    setSummaryStatus("Generating summary...");
+    const response = await fetch("/api/summarize", {
+      method: "POST",
+      body: JSON.stringify(formattedTranscript),
+    });
+
+    const reader = response.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n\n");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.message) {
+              setSummaryStatus(data.message);
+            } else if (data.summary) {
+              setSummary(data.summary);
+              setSummaryStatus("Summary generated");
+            }
+          } catch (error) {
+            console.error("Error in stream processing:", error);
+          }
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (formattedTranscript.length > 0) {
+      handleSummarize();
+    }
+  }, [formattedTranscript]);
+
+  useEffect(() => {
+    console.log("Summary Status:", summaryStatus);
+  }, [summaryStatus]);
+
   return (
     <>
       <div className="flex flex-col ">
@@ -65,7 +116,7 @@ export default function AITranscriber() {
             <Transcript formattedTranscript={formattedTranscript} />
           </TabsContent>
           <TabsContent value="summary">
-            <Summary formattedTranscript={formattedTranscript} />
+            <Summary summary={summary} />
           </TabsContent>
         </Tabs>
       </div>
