@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AudioUpload from "@/components/audio-upload";
 import Transcript from "@/components/transcript";
 import Summary from "@/components/summary";
@@ -16,10 +16,39 @@ export interface Word {
   word: string;
 }
 
+export interface FormattedTranscriptGroup {
+  speaker: number;
+  start: number;
+  text: string;
+}
+
 export default function AITranscriber() {
   const [transcriptionResult, setTranscriptionResult] = useState<Word[] | null>(
     null
   );
+  const [formattedTranscript, setFormattedTranscript] = useState<
+    FormattedTranscriptGroup[]
+  >([]);
+
+  useEffect(() => {
+    if (transcriptionResult) {
+      const groupedTranscript = transcriptionResult.reduce((acc, word) => {
+        const lastGroup = acc[acc.length - 1];
+        if (lastGroup && lastGroup.speaker === word.speaker) {
+          lastGroup.text += ` ${word.punctuated_word}`;
+        } else {
+          acc.push({
+            speaker: word.speaker,
+            start: word.start,
+            text: word.punctuated_word,
+          });
+        }
+        return acc;
+      }, [] as FormattedTranscriptGroup[]);
+
+      setFormattedTranscript(groupedTranscript);
+    }
+  }, [transcriptionResult]);
 
   return (
     <>
@@ -33,10 +62,10 @@ export default function AITranscriber() {
             <TabsTrigger value="summary">Summary</TabsTrigger>
           </TabsList>
           <TabsContent value="transcript">
-            <Transcript transcriptionResult={transcriptionResult} />
+            <Transcript formattedTranscript={formattedTranscript} />
           </TabsContent>
           <TabsContent value="summary">
-            <Summary transcriptionResult={transcriptionResult} />
+            <Summary formattedTranscript={formattedTranscript} />
           </TabsContent>
         </Tabs>
       </div>

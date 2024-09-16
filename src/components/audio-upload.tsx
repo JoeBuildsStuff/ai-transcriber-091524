@@ -29,7 +29,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ onTranscriptionResult }) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/deepgram", {
+    const response = await fetch("/api/transcribe", {
       method: "POST",
       body: formData,
     });
@@ -57,11 +57,9 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ onTranscriptionResult }) => {
             if (data.status) {
               console.log(data.status);
             } else {
-              // This is the full Deepgram result
               onTranscriptionResult(
                 data.results.channels[0].alternatives[0].words
               );
-              console.log("Full Deepgram result:", data);
             }
           } catch (error) {
             console.error("Error parsing JSON:", error);

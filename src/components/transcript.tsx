@@ -1,28 +1,13 @@
 import React from "react";
-
-import { Word } from "./ai-transcriber";
+import { FormattedTranscriptGroup } from "./ai-transcriber";
 import { Badge } from "./ui/badge";
 
 interface TranscriptProps {
-  transcriptionResult: Word[] | null;
+  formattedTranscript: FormattedTranscriptGroup[];
 }
 
-const Transcript: React.FC<TranscriptProps> = ({ transcriptionResult }) => {
-  if (!transcriptionResult) return null;
-
-  const groupedTranscript = transcriptionResult.reduce((acc, word) => {
-    const lastGroup = acc[acc.length - 1];
-    if (lastGroup && lastGroup.speaker === word.speaker) {
-      lastGroup.words.push(word);
-    } else {
-      acc.push({
-        speaker: word.speaker,
-        words: [word],
-        start: word.start, // Add the start time of the first word in the group
-      });
-    }
-    return acc;
-  }, [] as { speaker: number; words: Word[]; start: number }[]);
+const Transcript: React.FC<TranscriptProps> = ({ formattedTranscript }) => {
+  if (formattedTranscript.length === 0) return null;
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -47,7 +32,7 @@ const Transcript: React.FC<TranscriptProps> = ({ transcriptionResult }) => {
   return (
     <div className="mx-2 h-full">
       <div className="p-2 rounded overflow-auto h-[calc(100vh-200px)]">
-        {groupedTranscript.map((group, groupIndex) => (
+        {formattedTranscript.map((group, groupIndex) => (
           <div key={groupIndex} className="mb-5">
             <div className="flex items-center gap-2 mb-2">
               <Badge
@@ -62,11 +47,7 @@ const Transcript: React.FC<TranscriptProps> = ({ transcriptionResult }) => {
                 {formatTime(group.start)}
               </span>
             </div>
-            <p className="ml-4">
-              {group.words.map((word, wordIndex) => (
-                <span key={wordIndex}>{word.punctuated_word} </span>
-              ))}
-            </p>
+            <p className="ml-4">{group.text}</p>
           </div>
         ))}
       </div>
