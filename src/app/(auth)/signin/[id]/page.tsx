@@ -27,7 +27,8 @@ export default async function SignIn({
   params: { id: string };
   searchParams: { disable_button: boolean };
 }) {
-  const { allowOauth, allowEmail, allowPassword } = getAuthTypes();
+  // const { allowOauth, allowEmail, allowPassword } = getAuthTypes();
+  const { allowEmail, allowPassword } = getAuthTypes();
   const viewTypes = getViewTypes();
   const redirectMethod = getRedirectMethod();
 
