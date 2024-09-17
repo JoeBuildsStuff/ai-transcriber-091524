@@ -32,7 +32,19 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      "audio/*": [".mp3", ".wav", ".ogg"],
+      "audio/*": [
+        ".mp3",
+        ".mp4",
+        ".mp2",
+        ".aac",
+        ".wav",
+        ".flac",
+        ".pcm",
+        ".m4a",
+        ".ogg",
+        ".opus",
+        ".webm",
+      ],
     },
     multiple: false,
   });
