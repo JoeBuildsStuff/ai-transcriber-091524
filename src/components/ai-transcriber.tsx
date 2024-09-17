@@ -5,6 +5,7 @@ import AudioUpload from "@/components/audio-upload";
 import Transcript from "@/components/transcript";
 import Summary from "@/components/summary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 export interface Word {
   speaker: number;
@@ -32,6 +33,8 @@ export default function AITranscriber() {
   const [summary, setSummary] = useState<string>("");
   const [summaryStatus, setSummaryStatus] = useState<string>("");
 
+  const [statusAudioUpload, setStatusAudioUpload] = useState<string>("");
+
   useEffect(() => {
     if (transcriptionResult) {
       const groupedTranscript = transcriptionResult.reduce((acc, word) => {
@@ -49,13 +52,14 @@ export default function AITranscriber() {
       }, [] as FormattedTranscriptGroup[]);
 
       setFormattedTranscript(groupedTranscript);
+      setSummaryStatus("Transcript generated");
     }
   }, [transcriptionResult]);
 
   const handleSummarize = async () => {
     if (formattedTranscript.length === 0) return;
 
-    setSummaryStatus("Generating summary...");
+    setSummaryStatus("Requesting AI Summary.");
     const response = await fetch("/api/summarize", {
       method: "POST",
       body: JSON.stringify(formattedTranscript),
@@ -66,6 +70,7 @@ export default function AITranscriber() {
 
     const decoder = new TextDecoder();
 
+    setSummaryStatus("Processing AI Summary.");
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -81,7 +86,7 @@ export default function AITranscriber() {
               setSummaryStatus(data.message);
             } else if (data.summary) {
               setSummary(data.summary);
-              setSummaryStatus("Summary generated");
+              setSummaryStatus("");
             }
           } catch (error) {
             console.error("Error in stream processing:", error);
@@ -103,22 +108,41 @@ export default function AITranscriber() {
 
   return (
     <>
-      <div className="flex flex-col ">
-        <section className="w-full">
-          <AudioUpload onTranscriptionResult={setTranscriptionResult} />
+      <div className="relative flex flex-col ">
+        <div className="absolute right-0 top-2 flex flex-row space-x-2">
+          {statusAudioUpload && (
+            <Badge variant="outline" className="w-fit py-2 rounded-md">
+              {statusAudioUpload}
+            </Badge>
+          )}
+          {summaryStatus && (
+            <Badge variant="outline" className="w-fit py-2 rounded-md">
+              {summaryStatus}
+            </Badge>
+          )}
+        </div>
+        {/* {!summaryStatus && !statusAudioUpload && ( */}
+        <section className="w-full ">
+          <AudioUpload
+            onTranscriptionResult={setTranscriptionResult}
+            setStatus={setStatusAudioUpload}
+          />
         </section>
-        <Tabs defaultValue="transcript" className="">
-          <TabsList>
-            <TabsTrigger value="transcript">Transcript</TabsTrigger>
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-          </TabsList>
-          <TabsContent value="transcript">
-            <Transcript formattedTranscript={formattedTranscript} />
-          </TabsContent>
-          <TabsContent value="summary">
-            <Summary summary={summary} />
-          </TabsContent>
-        </Tabs>
+        {/* )} */}
+        {transcriptionResult && (
+          <Tabs defaultValue="transcript" className="">
+            <TabsList>
+              <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              <TabsTrigger value="summary">Summary</TabsTrigger>
+            </TabsList>
+            <TabsContent value="transcript">
+              <Transcript formattedTranscript={formattedTranscript} />
+            </TabsContent>
+            <TabsContent value="summary">
+              <Summary summary={summary} />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </>
   );

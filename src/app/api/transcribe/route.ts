@@ -4,9 +4,7 @@ import { createClient as supabaseClient } from "@/utils/supabase/server";
 
 export const runtime = 'edge';
 
-// Initialize Deepgram client
 const deepgram = deepgramClient(process.env.DEEPGRAM_API_KEY!);
-
 
 export async function POST(req: NextRequest) {
 
@@ -71,7 +69,6 @@ export async function POST(req: NextRequest) {
       }
     });
 
-
     // Delete the file after processing
     const { data: deletedData, error: deleteError } = await supabase.storage
       .from('ai-transcriber-audio')
@@ -90,10 +87,12 @@ export async function POST(req: NextRequest) {
         'Connection': 'keep-alive'
       }
     });
+
   } catch (error) {
     console.error('Detailed error:', error);
     return NextResponse.json({ error: 'An error occurred', details: error }, { status: 500 });
   }
+
 }
 
 const encoder = new TextEncoder();

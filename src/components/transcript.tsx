@@ -1,12 +1,22 @@
+"use client";
+
 import React from "react";
 import { FormattedTranscriptGroup } from "./ai-transcriber";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Copy, SquareCheckBig } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface TranscriptProps {
   formattedTranscript: FormattedTranscriptGroup[];
 }
 
 const Transcript: React.FC<TranscriptProps> = ({ formattedTranscript }) => {
+  const { toast } = useToast();
+  const [copyButtonText, setCopyButtonText] = useState("Copy");
+  const [copyIcon, setCopyIcon] = useState<"copy" | "check">("copy");
+
   if (formattedTranscript.length === 0) return null;
 
   const formatTime = (seconds: number) => {
@@ -29,9 +39,42 @@ const Transcript: React.FC<TranscriptProps> = ({ formattedTranscript }) => {
     return colors[speakerNumber % colors.length];
   };
 
+  const copyToClipboard = async () => {
+    const formattedText = formattedTranscript
+      .map(
+        (group) =>
+          `Speaker ${group.speaker} [${formatTime(group.start)}]: ${group.text}`
+      )
+      .join("\n");
+    navigator.clipboard.writeText(formattedText);
+    toast({
+      title: "Copied to clipboard",
+      description: "Transcript copied to clipboard",
+    });
+
+    setCopyButtonText("Copied");
+    setCopyIcon("check");
+    setTimeout(() => {
+      setCopyButtonText("Copy");
+      setCopyIcon("copy");
+    }, 2000);
+  };
+
   return (
-    <div className="mx-2 h-full">
-      <div className="p-2 rounded overflow-auto h-[calc(100vh-200px)]">
+    <div className="mx-2 h-full relative">
+      <Button
+        variant="ghost"
+        className="absolute -top-10 right-0"
+        onClick={copyToClipboard}
+      >
+        {copyIcon === "copy" ? (
+          <Copy className="w-4 h-4 mr-2 flex-none" />
+        ) : (
+          <SquareCheckBig className="w-4 h-4 mr-2 flex-none" />
+        )}
+        {copyButtonText}
+      </Button>
+      <div className="p-2 rounded overflow-auto h-[calc(100vh-200px)] ">
         {formattedTranscript.map((group, groupIndex) => (
           <div key={groupIndex} className="mb-5">
             <div className="flex items-center gap-2 mb-2">
