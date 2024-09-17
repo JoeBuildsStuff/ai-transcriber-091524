@@ -64,23 +64,24 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode('data: {"status": "Processing completed"}\n\n'));
           controller.close();
 
-          // Delete the file after processing
-          const { data: deletedData, error: deleteError } = await supabase.storage
-            .from('ai-transcriber-audio')
-            .remove([filePath]);
-
-          console.log('File deleted successfully:', deletedData);
-
-          if (deleteError) {
-            console.error('Supabase delete error:', deleteError);
-          }
-
         } catch (error) {
           console.error('Error in stream processing:', error);
           controller.error(error);
         }
       }
     });
+
+
+    // Delete the file after processing
+    const { data: deletedData, error: deleteError } = await supabase.storage
+      .from('ai-transcriber-audio')
+      .remove([filePath]);
+
+    console.log('File deleted successfully:', deletedData);
+
+    if (deleteError) {
+      console.error('Supabase delete error:', deleteError);
+    }
 
     return new Response(customReadable, {
       headers: {
