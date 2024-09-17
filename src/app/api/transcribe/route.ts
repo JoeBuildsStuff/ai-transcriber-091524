@@ -1,21 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from "@deepgram/sdk";
+import { createClient as deepgramClient } from "@deepgram/sdk";
+import { createClient as supabaseClient } from "@/utils/supabase/server";
 
 export const runtime = 'edge';
 
 // Initialize Deepgram client
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
+const deepgram = deepgramClient(process.env.DEEPGRAM_API_KEY!);
+
 
 export async function POST(req: NextRequest) {
-  try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
 
-    if (!file) {
-      throw new Error('No file uploaded');
+  console.log('Received request to transcribe');
+
+  try {
+
+    const supabase = supabaseClient();
+
+    const { filePath } = await req.json();
+
+    if (!filePath) {
+      throw new Error('No file path provided');
     }
 
-    const arrayBuffer = await file.arrayBuffer();
+    const { data, error } = await supabase.storage
+      .from('ai-transcriber-audio')
+      .download(filePath);
+
+    if (error) {
+      console.error('Supabase download error:', error);
+      throw error;
+    }
+
+    console.log('File downloaded successfully');
+
+    const arrayBuffer = await data.arrayBuffer();
+
+    console.log('ArrayBuffer created, size:', arrayBuffer.byteLength);
 
     const customReadable = new ReadableStream({
       async start(controller) {
@@ -43,6 +63,18 @@ export async function POST(req: NextRequest) {
 
           controller.enqueue(encoder.encode('data: {"status": "Processing completed"}\n\n'));
           controller.close();
+
+          // Delete the file after processing
+          const { data: deletedData, error: deleteError } = await supabase.storage
+            .from('ai-transcriber-audio')
+            .remove([filePath]);
+
+          console.log('File deleted successfully:', deletedData);
+
+          if (deleteError) {
+            console.error('Supabase delete error:', deleteError);
+          }
+
         } catch (error) {
           console.error('Error in stream processing:', error);
           controller.error(error);
@@ -58,8 +90,8 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
+    console.error('Detailed error:', error);
+    return NextResponse.json({ error: 'An error occurred', details: error }, { status: 500 });
   }
 }
 

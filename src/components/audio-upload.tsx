@@ -1,10 +1,13 @@
 "use client";
-
+import { v4 as uuidv4 } from "uuid";
+import { createClient as supabaseClient } from "@/utils/supabase/client";
 import React, { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 
 import { Word } from "./ai-transcriber";
+
+const supabase = supabaseClient();
 
 interface AudioUploadProps {
   onTranscriptionResult: (result: Word[] | null) => void;
@@ -26,13 +29,35 @@ const AudioUpload: React.FC<AudioUploadProps> = ({ onTranscriptionResult }) => {
   });
 
   const handleFileAccepted = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
+    const fileName = `${uuidv4()}.${file.name.split(".").pop()}`;
+    const { data, error } = await supabase.storage
+      .from("ai-transcriber-audio")
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    console.log("handleFileAccepted data", data);
+
+    if (error) {
+      console.error("Error uploading file:", error);
+      return;
+    }
 
     const response = await fetch("/api/transcribe", {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ filePath: data.path }),
     });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Transcription error:", errorData);
+      // Handle the error appropriately (e.g., show an error message to the user)
+      return;
+    }
 
     const reader = response.body?.getReader();
     if (!reader) return;

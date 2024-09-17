@@ -13,7 +13,7 @@ const Summary: React.FC<SummaryProps> = ({ summary }) => {
     <div className="mx-5 h-full">
       <div className="p-4 rounded overflow-auto h-[calc(100vh-200px)]">
         {summary ? (
-          <div className="prose prose-md max-w-none">
+          <div className="prose prose-md max-w-none dark:prose-invert">
             <ReactMarkdown rehypePlugins={[rehypeRaw]}>{summary}</ReactMarkdown>
           </div>
         ) : (
