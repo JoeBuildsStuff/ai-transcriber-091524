@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode("data: " + JSON.stringify({ summary: completion.choices[0].message.content }) + "\n\n"));
 
         // Send completion message
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.enqueue(encoder.encode('data: {"status": "Processing completed"}\n\n'));
         controller.close();
       } catch (error) {
         console.error("Error in stream processing:", error);

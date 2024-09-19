@@ -64,6 +64,7 @@
     "supabase": "^1.192.5",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
+    "tus-js-client": "^4.2.3",
     "uuid": "^10.0.0",
     "vaul": "^0.9.3",
     "zod": "^3.23.8"

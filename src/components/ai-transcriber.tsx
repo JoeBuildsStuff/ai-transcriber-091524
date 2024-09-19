@@ -6,6 +6,7 @@ import Transcript from "@/components/transcript";
 import Summary from "@/components/summary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 export interface Word {
   speaker: number;
@@ -24,6 +25,8 @@ export interface FormattedTranscriptGroup {
 }
 
 export default function AITranscriber() {
+  const { toast } = useToast();
+
   const [transcriptionResult, setTranscriptionResult] = useState<Word[] | null>(
     null
   );
@@ -37,62 +40,104 @@ export default function AITranscriber() {
 
   useEffect(() => {
     if (transcriptionResult) {
-      const groupedTranscript = transcriptionResult.reduce((acc, word) => {
-        const lastGroup = acc[acc.length - 1];
-        if (lastGroup && lastGroup.speaker === word.speaker) {
-          lastGroup.text += ` ${word.punctuated_word}`;
-        } else {
-          acc.push({
-            speaker: word.speaker,
-            start: word.start,
-            text: word.punctuated_word,
-          });
-        }
-        return acc;
-      }, [] as FormattedTranscriptGroup[]);
+      try {
+        const groupedTranscript = transcriptionResult.reduce((acc, word) => {
+          const lastGroup = acc[acc.length - 1];
+          if (lastGroup && lastGroup.speaker === word.speaker) {
+            lastGroup.text += ` ${word.punctuated_word}`;
+          } else {
+            acc.push({
+              speaker: word.speaker,
+              start: word.start,
+              text: word.punctuated_word,
+            });
+          }
+          return acc;
+        }, [] as FormattedTranscriptGroup[]);
 
-      setFormattedTranscript(groupedTranscript);
-      setSummaryStatus("Transcript generated");
+        setFormattedTranscript(groupedTranscript);
+        setSummaryStatus("Transcript generated");
+      } catch (error) {
+        console.error("Error formatting transcript:", error);
+        toast({
+          title: "Error",
+          description: "Failed to format transcript. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   }, [transcriptionResult]);
 
   const handleSummarize = async () => {
-    if (formattedTranscript.length === 0) return;
+    if (formattedTranscript.length === 0) {
+      toast({
+        title: "No transcript",
+        description: "Please upload an audio file first.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSummaryStatus("Requesting AI Summary.");
-    const response = await fetch("/api/summarize", {
-      method: "POST",
-      body: JSON.stringify(formattedTranscript),
-    });
+    try {
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        body: JSON.stringify(formattedTranscript),
+      });
 
-    const reader = response.body?.getReader();
-    if (!reader) return;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    const decoder = new TextDecoder();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to get response reader");
+      }
 
-    setSummaryStatus("Processing AI Summary.");
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const decoder = new TextDecoder();
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n\n");
+      setSummaryStatus("Processing AI Summary.");
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.message) {
-              setSummaryStatus(data.message);
-            } else if (data.summary) {
-              setSummary(data.summary);
-              setSummaryStatus("");
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.message) {
+                setSummaryStatus(data.message);
+              } else if (data.summary) {
+                setSummary(data.summary);
+                setSummaryStatus("");
+                toast({
+                  title: "Summary generated",
+                  description: "Your transcript has been summarized.",
+                });
+              }
+            } catch (error) {
+              console.error("Error in stream processing:", error);
+              toast({
+                title: "Error",
+                description:
+                  "Failed to process summary stream. Please try again.",
+                variant: "destructive",
+              });
             }
-          } catch (error) {
-            console.error("Error in stream processing:", error);
           }
         }
       }
+    } catch (error) {
+      console.error("Error in summarization:", error);
+      setSummaryStatus("");
+      toast({
+        title: "Summarization failed",
+        description: "An error occurred while summarizing. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

@@ -1,13 +1,12 @@
 "use client";
 import { v4 as uuidv4 } from "uuid";
-import { createClient as supabaseClient } from "@/utils/supabase/client";
 import React, { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Word } from "./ai-transcriber";
 import { ArrowLeft } from "lucide-react";
-
-const supabase = supabaseClient();
+import { useToast } from "@/hooks/use-toast";
+import * as tus from "tus-js-client";
 
 interface AudioUploadProps {
   onTranscriptionResult: (result: Word[] | null) => void;
@@ -18,16 +17,25 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
   onTranscriptionResult,
   setStatus,
 }) => {
-  //track if a file is dropped
+  const { toast } = useToast();
   const [isFileDropped, setIsFileDropped] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      setIsFileDropped(true);
-      setStatus("Droped File...");
-      handleFileAccepted(acceptedFiles[0]);
-    }
-  }, []);
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length > 0) {
+        setIsFileDropped(true);
+        setStatus("Dropped File...");
+        handleFileAccepted(acceptedFiles[0]);
+      } else {
+        toast({
+          title: "Error",
+          description: "No file was dropped. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [setStatus, toast]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -49,42 +57,78 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
     multiple: false,
   });
 
-  const handleFileAccepted = async (file: File) => {
-    setStatus("Handling File...");
-    const fileName = `${uuidv4()}.${file.name.split(".").pop()}`;
-    const { data, error } = await supabase.storage
-      .from("ai-transcriber-audio")
-      .upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: false,
+  const validateFile = (file: File) => {
+    if (!file) {
+      throw new Error("No file provided");
+    }
+  };
+
+  const uploadFile = async (file: File, fileName: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const upload = new tus.Upload(file, {
+        endpoint: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/upload/resumable`,
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          "x-upsert": "true", // Set to 'true' if you want to overwrite existing files
+        },
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        metadata: {
+          bucketName: "ai-transcriber-audio",
+          objectName: fileName,
+          contentType: file.type,
+          cacheControl: "3600",
+        },
+        chunkSize: 6 * 1024 * 1024, // 6MB chunk size
+        onError: (error) => {
+          console.error("Failed because: " + error);
+          reject(error);
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+          console.log(`Uploading: ${percentage}%`);
+          setStatus(`Uploading: ${percentage}%`);
+        },
+        onSuccess: () => {
+          console.log("Download %s from %s", file.name, upload.url);
+          resolve(fileName);
+        },
       });
 
-    console.log("handleFileAccepted data", data);
+      // Check for previous uploads to resume
+      upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+        upload.start();
+      });
+    });
+  };
 
-    if (error) {
-      console.error("Error uploading file:", error);
-      return;
-    }
-
-    setStatus("Passing to Transcriber...");
+  const processTranscription = async (filePath: string) => {
     const response = await fetch("/api/transcribe", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ filePath: data.path }),
+      body: JSON.stringify({ filePath }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("Transcription error:", errorData);
-      setStatus("Error from Transcriber...");
-      // Handle the error appropriately (e.g., show an error message to the user)
-      return;
+      throw new Error(`Transcription error: ${errorData.message}`);
     }
 
+    await handleTranscriptionStream(response);
+  };
+
+  const handleTranscriptionStream = async (response: Response) => {
     const reader = response.body?.getReader();
-    if (!reader) return;
+
+    if (!reader) {
+      throw new Error("Failed to get reader from response body");
+    }
 
     let buffer = "";
     const decoder = new TextDecoder();
@@ -98,36 +142,67 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
 
       let boundary = buffer.indexOf("\n\n");
       while (boundary !== -1) {
-        setStatus("Processing Transcription...");
-        const line = buffer.slice(0, boundary);
+        await processTranscriptionChunk(buffer.slice(0, boundary));
         buffer = buffer.slice(boundary + 2);
-
-        if (line.startsWith("data: ")) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.status) {
-              setStatus(data.status);
-              console.log(data.status);
-            } else {
-              setStatus("");
-              onTranscriptionResult(
-                data.results.channels[0].alternatives[0].words
-              );
-            }
-          } catch (error) {
-            setStatus("Error from Transcriber.");
-            console.error("Error parsing JSON:", error);
-          }
-        }
-
         boundary = buffer.indexOf("\n\n");
       }
     }
-    setStatus("");
+  };
+
+  const processTranscriptionChunk = async (chunk: string) => {
+    setStatus("Processing Transcription...");
+    if (chunk.startsWith("data: ")) {
+      try {
+        const data = JSON.parse(chunk.slice(6));
+        if (data.status) {
+          setStatus(data.status);
+          console.log(data.status);
+        } else if (
+          data.results &&
+          data.results.channels &&
+          data.results.channels[0]?.alternatives
+        ) {
+          setStatus("");
+          onTranscriptionResult(data.results.channels[0].alternatives[0].words);
+        } else {
+          throw new Error("Unexpected data format from transcriber");
+        }
+      } catch (error) {
+        setStatus("Error from Transcriber.");
+        console.error("Error parsing JSON:", error);
+        throw error;
+      }
+    }
+  };
+
+  const handleError = (error: unknown) => {
+    console.error("Error in file handling:", error);
+    setStatus("An error occurred. Please try again.");
+    toast({
+      title: "Error",
+      description:
+        error instanceof Error ? error.message : "Unknown error occurred",
+      variant: "destructive",
+    });
+    setIsFileDropped(false);
+  };
+
+  const handleFileAccepted = async (file: File) => {
+    setStatus("Handling File...");
+    const fileName = `${uuidv4()}.${file.name.split(".").pop()}`;
+    try {
+      await validateFile(file);
+      const filePath = await uploadFile(file, fileName);
+      await processTranscription(filePath);
+      setStatus("");
+    } catch (error) {
+      handleError(error);
+    }
   };
 
   const handleNewFile = () => {
     setIsFileDropped(false);
+    setStatus("");
   };
 
   return (
@@ -145,20 +220,21 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
       ) : (
         <div
           {...getRootProps()}
-          className="max-w-lg m-5 sm:mx-auto border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
+          className={`max-w-lg m-5 sm:mx-auto border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+            isDragActive
+              ? "border-blue-400"
+              : "border-border hover:border-blue-400"
+          }`}
         >
-          {isFileDropped}
           <input {...getInputProps()} />
-          {isDragActive ? (
-            <p>Drop the audio file here ...</p>
-          ) : (
-            <div className="space-y-2">
-              <p className="my-2">
-                Drag n drop an audio file here, or click to select a file
-              </p>
-              <Button type="button">Select Audio File</Button>
-            </div>
-          )}
+          <div className="space-y-2">
+            <p className="my-2">
+              Drag n drop an audio file here, or click to select a file
+            </p>
+            <Button variant="outline" type="button">
+              Select Audio File
+            </Button>
+          </div>
         </div>
       )}
     </>
