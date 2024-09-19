@@ -7,6 +7,8 @@ import { Word } from "./ai-transcriber";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as tus from "tus-js-client";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
 
 interface AudioUploadProps {
   onTranscriptionResult: (result: Word[] | null) => void;
@@ -19,6 +21,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
 }) => {
   const { toast } = useToast();
   const [isFileDropped, setIsFileDropped] = useState(false);
+  const maxSizeInBytes = 50 * 1024 * 1024; // 50 MB
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -58,9 +61,240 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
   });
 
   const validateFile = (file: File) => {
+    setStatus("Validating File...");
     if (!file) {
+      toast({
+        title: "Error",
+        description: "No file provided",
+        variant: "destructive",
+      });
       throw new Error("No file provided");
     }
+  };
+
+  const trimSilence = async (file: File): Promise<File> => {
+    setStatus("Trimming Silence...");
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || window.AudioContext)();
+      const reader = new FileReader();
+
+      reader.onload = async (event) => {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        const channelData = audioBuffer.getChannelData(0); // Assuming mono
+        const threshold = 0.01; // Silence threshold
+        let start = 0;
+        let end = channelData.length;
+
+        // Find the start index
+        for (let i = 0; i < channelData.length; i++) {
+          if (Math.abs(channelData[i]) > threshold) {
+            start = i;
+            break;
+          }
+        }
+
+        // Find the end index
+        for (let i = channelData.length - 1; i >= 0; i--) {
+          if (Math.abs(channelData[i]) > threshold) {
+            end = i;
+            break;
+          }
+        }
+
+        const trimmedLength = end - start;
+        const trimmedBuffer = audioContext.createBuffer(
+          audioBuffer.numberOfChannels,
+          trimmedLength,
+          audioBuffer.sampleRate
+        );
+
+        for (
+          let channel = 0;
+          channel < audioBuffer.numberOfChannels;
+          channel++
+        ) {
+          trimmedBuffer.copyToChannel(
+            audioBuffer.getChannelData(channel).slice(start, end),
+            channel
+          );
+        }
+
+        const wavBlob = await audioBufferToWav(trimmedBuffer);
+        const trimmedFile = new File([wavBlob], file.name, {
+          type: "audio/wav",
+        });
+        resolve(trimmedFile);
+      };
+
+      reader.onerror = (error) => {
+        reject(error);
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const convertToMono = async (file: File): Promise<File> => {
+    setStatus("Converting to Mono...");
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || window.AudioContext)();
+      const reader = new FileReader();
+
+      reader.onload = async (event) => {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        const numberOfChannels = 1; // Mono
+        const monoBuffer = audioContext.createBuffer(
+          numberOfChannels,
+          audioBuffer.length,
+          audioBuffer.sampleRate
+        );
+
+        const channelData = new Float32Array(audioBuffer.length);
+
+        for (
+          let channel = 0;
+          channel < audioBuffer.numberOfChannels;
+          channel++
+        ) {
+          const data = audioBuffer.getChannelData(channel);
+          for (let i = 0; i < data.length; i++) {
+            channelData[i] += data[i] / audioBuffer.numberOfChannels;
+          }
+        }
+
+        monoBuffer.copyToChannel(channelData, 0);
+
+        const wavBlob = await audioBufferToWav(monoBuffer);
+        const monoFile = new File([wavBlob], file.name, { type: "audio/wav" });
+        resolve(monoFile);
+      };
+
+      reader.onerror = (error) => {
+        reject(error);
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const reduceSampleRate = async (
+    file: File,
+    newSampleRate = 22050
+  ): Promise<File> => {
+    setStatus("Reducing Sample Rate...");
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || window.AudioContext)();
+      const reader = new FileReader();
+
+      reader.onload = async (event) => {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        const offlineContext = new OfflineAudioContext(
+          1, // Mono
+          audioBuffer.duration * newSampleRate,
+          newSampleRate
+        );
+
+        const source = offlineContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(offlineContext.destination);
+        source.start(0);
+
+        const resampledBuffer = await offlineContext.startRendering();
+
+        const wavBlob = await audioBufferToWav(resampledBuffer);
+        const resampledFile = new File([wavBlob], file.name, {
+          type: "audio/wav",
+        });
+        resolve(resampledFile);
+      };
+
+      reader.onerror = (error) => {
+        reject(error);
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const audioBufferToWav = async (buffer: AudioBuffer): Promise<Blob> => {
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length * numberOfChannels * 2;
+    const arrayBuffer = new ArrayBuffer(44 + length);
+    const view = new DataView(arrayBuffer);
+
+    // Write WAV header
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + length, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+    view.setUint16(32, numberOfChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, "data");
+    view.setUint32(40, length, true);
+
+    // Write PCM audio data
+    const offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = buffer.getChannelData(channel)[i];
+        view.setInt16(
+          offset + (i * numberOfChannels + channel) * 2,
+          sample * 0x7fff,
+          true
+        );
+      }
+    }
+
+    return new Blob([arrayBuffer], { type: "audio/wav" });
+  };
+
+  const writeString = (view: DataView, offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  const ffmpeg = new FFmpeg();
+
+  const processWithFFmpeg = async (file: File): Promise<File> => {
+    setStatus("Processing with FFmpeg...");
+    if (!ffmpeg.loaded) {
+      await ffmpeg.load();
+    }
+
+    await ffmpeg.writeFile("input.mp3", await fetchFile(file));
+
+    // Adjust command for MP3 input and output
+    await ffmpeg.exec([
+      "-i",
+      "input.mp3",
+      "-af",
+      "silenceremove=1:0:-50dB",
+      "-ac",
+      "1",
+      "-ar",
+      "22050",
+      "-c:a",
+      "libmp3lame",
+      "-b:a",
+      "64k",
+      "output.mp3",
+    ]);
+
+    const data = await ffmpeg.readFile("output.mp3");
+    return new File([data], "output.mp3", { type: "audio/mp3" });
   };
 
   const uploadFile = async (file: File, fileName: string): Promise<string> => {
@@ -162,7 +396,7 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
           data.results.channels &&
           data.results.channels[0]?.alternatives
         ) {
-          setStatus("");
+          setStatus("Transcription Complete.");
           onTranscriptionResult(data.results.channels[0].alternatives[0].words);
         } else {
           throw new Error("Unexpected data format from transcriber");
@@ -189,15 +423,79 @@ const AudioUpload: React.FC<AudioUploadProps> = ({
 
   const handleFileAccepted = async (file: File) => {
     setStatus("Handling File...");
-    const fileName = `${uuidv4()}.${file.name.split(".").pop()}`;
+
     try {
       await validateFile(file);
+      console.log("Max size in bytes:", maxSizeInBytes);
+      console.log("File size before processing:", file.size);
+
+      file = await processFileSize(file);
+
+      if (file.size > maxSizeInBytes) {
+        throw new Error("File size is still over 50 MB after processing.");
+      }
+
+      const fileName = `${uuidv4()}.${file.name.split(".").pop()}`;
       const filePath = await uploadFile(file, fileName);
       await processTranscription(filePath);
       setStatus("");
     } catch (error) {
       handleError(error);
     }
+  };
+
+  const processFileSize = async (file: File): Promise<File> => {
+    if (file.size > maxSizeInBytes) {
+      file = await convertToMp3(file);
+      logAndToastFileSize("MP3 Conversion", file.size);
+    }
+
+    const processingSteps = [
+      { name: "Trimming Silence", process: trimSilence },
+      { name: "Converting to Mono", process: convertToMono },
+      { name: "Reducing Sample Rate", process: reduceSampleRate },
+      { name: "FFmpeg Processing", process: processWithFFmpeg },
+    ];
+
+    for (const step of processingSteps) {
+      if (file.size <= maxSizeInBytes) break;
+
+      file = await step.process(file);
+      logAndToastFileSize(step.name, file.size);
+    }
+
+    return file;
+  };
+
+  const convertToMp3 = async (file: File): Promise<File> => {
+    setStatus("Converting to MP3...");
+    if (!ffmpeg.loaded) {
+      await ffmpeg.load();
+    }
+
+    await ffmpeg.writeFile("input", await fetchFile(file));
+
+    await ffmpeg.exec([
+      "-i",
+      "input",
+      "-c:a",
+      "libmp3lame",
+      "-b:a",
+      "128k",
+      "output.mp3",
+    ]);
+
+    const data = await ffmpeg.readFile("output.mp3");
+    return new File([data], "output.mp3", { type: "audio/mp3" });
+  };
+
+  const logAndToastFileSize = (stepName: string, fileSize: number) => {
+    console.log(`File size after ${stepName.toLowerCase()}:`, fileSize);
+    toast({
+      title: `File Size After ${stepName}`,
+      description: `File size: ${fileSize} bytes`,
+      variant: "default",
+    });
   };
 
   const handleNewFile = () => {
