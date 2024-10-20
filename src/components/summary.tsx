@@ -6,6 +6,7 @@ import rehypeRaw from "rehype-raw";
 import { Button } from "@/components/ui/button";
 import { Copy, SquareCheckBig } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { marked } from "marked";
 
 interface SummaryProps {
   summary: string;
@@ -17,18 +18,35 @@ const Summary: React.FC<SummaryProps> = ({ summary }) => {
   const [copyIcon, setCopyIcon] = useState<"copy" | "check">("copy");
 
   const copyToClipboard = async () => {
-    await navigator.clipboard.writeText(summary);
-    toast({
-      title: "Copied to clipboard",
-      description: "Summary copied to clipboard",
-    });
+    const htmlContent = await marked(summary);
 
-    setCopyButtonText("Copied");
-    setCopyIcon("check");
-    setTimeout(() => {
-      setCopyButtonText("Copy");
-      setCopyIcon("copy");
-    }, 2000);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([summary], { type: "text/plain" }),
+          "text/html": new Blob([htmlContent], { type: "text/html" }),
+        }),
+      ]);
+
+      toast({
+        title: "Copied to clipboard",
+        description: "Summary copied to clipboard (formatted)",
+      });
+
+      setCopyButtonText("Copied");
+      setCopyIcon("check");
+      setTimeout(() => {
+        setCopyButtonText("Copy");
+        setCopyIcon("copy");
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy summary to clipboard",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
