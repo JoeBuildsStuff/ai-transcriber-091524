@@ -69,12 +69,7 @@ export async function signInWithEmail(formData: FormData) {
     );
   } else if (data) {
     cookieStore.set("preferredSignInView", "email_signin", { path: "/" });
-    redirectPath = getStatusRedirect(
-      "/signin/email_signin",
-      "Success!",
-      "Please check your email for a magic link. You may now close this tab.",
-      true
-    );
+    redirectPath = `/auth/check-email?email=${email}`;
   } else {
     redirectPath = getErrorRedirect(
       "/signin/email_signin",
